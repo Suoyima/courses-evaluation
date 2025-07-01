@@ -19,3 +19,8 @@ export interface ReviewCreatePayload {
   harvest: number
   content: string
 }
+
+export interface ReviewFilters {
+  departments: string[]
+  rating_ranges: string[]
+}

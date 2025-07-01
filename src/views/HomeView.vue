@@ -9,7 +9,7 @@ import type { Review } from '../types/review'
 const reviews = ref<Review[]>([])
 const filters = ref({
   departments: [] as string[],
-  ratingRanges: [] as string[],
+  rating_ranges: [] as string[],
 })
 const isLoading = ref(false)
 
@@ -38,7 +38,7 @@ onMounted(async () => {
           :key="review.id"
           :course="{
             id: review.course_id,
-            name: review.course_name,
+            name: review.course_name || '未知课程', // 添加回退值
             rating: review.rating,
           }"
           :review="review"

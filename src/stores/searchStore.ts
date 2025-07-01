@@ -7,7 +7,7 @@ interface SearchResult {
   name: string
   department: string
   credit: number
-  avg_rating: number
+  avg_rating?: number
 }
 
 export const useSearchStore = defineStore('search', {
