@@ -1,16 +1,31 @@
-// src/composables/useCourses.ts
-import { useCourseStore } from '@/stores/courseStore'
+import { ref } from 'vue'
+import { useCourseStore } from '../stores/courseStore'
 
-// 必须使用 export 明确导出
-export const useCourses = () => {
-  const store = useCourseStore()
+export function useCourses() {
+  const courseStore = useCourseStore()
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
 
-  const loadCourses = async () => {
-    await store.fetchCourses()
+  const fetchCourseData = async (courseId: number) => {
+    isLoading.value = true
+    error.value = null
+    try {
+      await Promise.all([
+        courseStore.fetchCourseDetail(courseId),
+        courseStore.fetchSimilarCourses(courseId),
+      ])
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to fetch course data'
+    } finally {
+      isLoading.value = false
+    }
   }
 
   return {
-    loadCourses,
-    isLoading: store.isLoading,
+    isLoading,
+    error,
+    fetchCourseData,
+    course: courseStore.currentCourse,
+    similarCourses: courseStore.similarCourses,
   }
 }

@@ -1,58 +1,67 @@
-<template>
-  <div class="home">
-    <NavBar />
-    <div class="course-list">
-      <CourseCard
-        v-for="course in store.courses"
-        :key="course.id"
-        :course="course"
-        :reviews="store.reviews[course.id]"
-      />
-    </div>
-    <FooterFilter @filter="handleFilter" />
-  </div>
-</template>
-
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useCourseStore } from '../stores/courseStore'
-import NavBar from '../components/NavBar.vue'
-import CourseCard from '../components/CourseCard.vue'
+import { ref, onMounted } from 'vue'
+import CourseCard from '../components/course/CourseCard.vue'
 import FooterFilter from '../components/FooterFilter.vue'
-import { useCourses } from '../composables/useCourses'
+import NavBar from '../components/NavBar.vue'
+import { getLatestReviews, getReviewFilters } from '../api/reviews'
+import type { Review } from '../types/review'
 
-const store = useCourseStore()
-const { isLoading, loadCourses } = useCourses()
+const reviews = ref<Review[]>([])
+const filters = ref({
+  departments: [] as string[],
+  ratingRanges: [] as string[],
+})
+const isLoading = ref(false)
 
-const handleFilter = (filters: {
-  department: string | null
-  credit: string | null
-  minRating: number
-  maxRating: number
-}) => {
-  // 调用 store 中的搜索方法
-  store.searchCourses({
-    department: filters.department || undefined,
-    credit: filters.credit ? parseInt(filters.credit) : undefined,
-    minRating: filters.minRating,
-    maxRating: filters.maxRating,
-  })
-}
-
-onMounted(() => {
-  loadCourses()
+onMounted(async () => {
+  isLoading.value = true
+  try {
+    const [reviewsRes, filtersRes] = await Promise.all([getLatestReviews(), getReviewFilters()])
+    reviews.value = reviewsRes.reviews
+    filters.value = filtersRes
+  } catch (error) {
+    console.error('Failed to fetch data:', error)
+  } finally {
+    isLoading.value = false
+  }
 })
 </script>
 
+<template>
+  <div class="home">
+    <NavBar />
+    <main>
+      <div v-if="isLoading">加载中...</div>
+      <div v-else class="review-list">
+        <CourseCard
+          v-for="review in reviews"
+          :key="review.id"
+          :course="{
+            id: review.course_id,
+            name: review.course_name,
+            rating: review.rating,
+          }"
+          :review="review"
+        />
+      </div>
+    </main>
+    <FooterFilter :filters="filters" />
+  </div>
+</template>
+
 <style scoped>
 .home {
-  max-width: 1200px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
-.course-list {
+main {
+  flex: 1;
+  padding: 20px;
+}
+.review-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
-  padding: 20px;
 }
 </style>

@@ -1,96 +1,220 @@
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { searchCourses, getSearchFilters } from '../api/search'
+import CourseCard from '../components/course/CourseCard.vue'
+
+const searchQuery = ref('')
+const filters = ref({
+  department: '',
+  minRating: 0,
+  maxRating: 5,
+  credit: 0,
+})
+const searchResults = ref<any[]>([])
+const availableFilters = ref({
+  departments: [] as string[],
+  credits: [] as number[],
+})
+const isLoading = ref(false)
+
+const performSearch = async () => {
+  isLoading.value = true
+  try {
+    const params = {
+      keyword: searchQuery.value,
+      department: filters.value.department,
+      min_rating: filters.value.minRating,
+      max_rating: filters.value.maxRating,
+      credit: filters.value.credit || undefined,
+    }
+    const response = await searchCourses(params)
+    searchResults.value = response.courses.map((course) => ({
+      ...course,
+      // 确保符合CourseCard要求的review结构
+      review: {
+        id: 0,
+        course_id: course.id,
+        course_name: course.name,
+        rating: course.avg_rating,
+        content: '',
+        created_at: new Date().toISOString(),
+      },
+    }))
+  } catch (error) {
+    console.error('搜索失败:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  const filtersRes = await getSearchFilters()
+  availableFilters.value = filtersRes
+  await performSearch()
+})
+</script>
+
 <template>
   <div class="search-view">
-    <n-input
-      v-model:value="searchQuery"
-      placeholder="搜索课程或教师"
-      round
-      clearable
-      @keyup.enter="handleSearch"
-    >
-      <template #prefix>
-        <n-icon><search-icon /></n-icon>
-      </template>
-    </n-input>
+    <div class="search-header">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="搜索课程..."
+        @keyup.enter="performSearch"
+      />
+      <button @click="performSearch">搜索</button>
+    </div>
 
-    <div class="search-content">
-      <div class="filters">
-        <n-card title="筛选条件">
-          <n-space vertical>
-            <n-select v-model:value="department" :options="departmentOptions" placeholder="院系" />
-            <n-slider v-model:value="ratingRange" range :min="0" :max="5" :step="0.5" />
-            <n-select v-model:value="credit" :options="creditOptions" placeholder="学分" />
-          </n-space>
-        </n-card>
+    <div class="search-container">
+      <div class="filter-panel">
+        <h3>筛选条件</h3>
+        <div class="filter-group">
+          <label>院系:</label>
+          <select v-model="filters.department">
+            <option value="">全部院系</option>
+            <option v-for="dept in availableFilters.departments" :key="dept" :value="dept">
+              {{ dept }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>评分范围:</label>
+          <div class="range-inputs">
+            <input v-model.number="filters.minRating" type="number" min="0" max="5" step="0.1" />
+            <span>至</span>
+            <input v-model.number="filters.maxRating" type="number" min="0" max="5" step="0.1" />
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label>学分:</label>
+          <select v-model.number="filters.credit">
+            <option :value="0">全部</option>
+            <option v-for="credit in availableFilters.credits" :key="credit" :value="credit">
+              {{ credit }}学分
+            </option>
+          </select>
+        </div>
+
+        <button class="apply-btn" @click="performSearch">应用筛选</button>
       </div>
 
-      <div class="results">
-        <n-card v-for="course in filteredCourses" :key="course.id" :title="course.name">
-          <CourseCard :course="course" :reviews="store.reviews[course.id]" />
-        </n-card>
+      <div class="results-panel">
+        <div v-if="isLoading" class="loading">加载中...</div>
+        <div v-else-if="searchResults.length === 0" class="no-results">没有找到匹配的课程</div>
+        <div v-else class="results-grid">
+          <CourseCard
+            v-for="result in searchResults"
+            :key="result.id"
+            :course="{
+              id: result.id,
+              name: result.name,
+              rating: result.avg_rating,
+            }"
+            :review="result.review"
+          />
+        </div>
       </div>
     </div>
   </div>
 </template>
 
-<script setup lang="ts">
-import { NCard, NInput, NIcon, NSelect, NSlider, NSpace } from 'naive-ui'
-import { SearchOutline } from '@vicons/ionicons5'
-import { ref, computed } from 'vue'
-import { useCourseStore } from '../stores/courseStore'
-import CourseCard from '../components/CourseCard.vue'
-
-const store = useCourseStore()
-const searchQuery = ref('')
-const department = ref('')
-const ratingRange = ref([0, 5])
-const credit = ref('')
-
-const departmentOptions = computed(() => [
-  { label: '计算机学院', value: '计算机学院' },
-  { label: '数学学院', value: '数学学院' },
-  { label: '物理学院', value: '物理学院' },
-])
-
-const creditOptions = [
-  { label: '1学分', value: '1' },
-  { label: '2学分', value: '2' },
-  { label: '3学分', value: '3' },
-  { label: '4学分', value: '4' },
-]
-
-const filteredCourses = computed(() => {
-  return store.courses.filter((course) => {
-    const matchesSearch =
-      course.name.includes(searchQuery.value) || course.department.includes(searchQuery.value)
-    const matchesDepartment = !department.value || course.department === department.value
-    const matchesCredit = !credit.value || course.credit.toString() === credit.value
-
-    return matchesSearch && matchesDepartment && matchesCredit
-  })
-})
-
-const handleSearch = () => {
-  // 搜索逻辑
-}
-</script>
-
 <style scoped>
 .search-view {
+  padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
 }
-.search-content {
+
+.search-header {
   display: flex;
-  margin-top: 20px;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.search-header input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.search-header button {
+  padding: 10px 20px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.search-container {
+  display: flex;
   gap: 20px;
 }
-.filters {
+
+.filter-panel {
   width: 250px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-.results {
+
+.filter-group {
+  margin-bottom: 15px;
+}
+
+.filter-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.filter-group select,
+.filter-group input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.range-inputs input {
+  width: 70px;
+}
+
+.apply-btn {
+  width: 100%;
+  padding: 10px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.results-panel {
   flex: 1;
+}
+
+.results-grid {
   display: grid;
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.loading,
+.no-results {
+  text-align: center;
+  padding: 40px;
+  color: #666;
 }
 </style>
